@@ -26,6 +26,7 @@ import com.mealmate.app.ui.components.MealMateBottomBar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeDashboardScreen(
+    viewModel: com.mealmate.app.viewmodel.MealViewModel,
     onNavigateToRecipeDetail: (Int) -> Unit,
     onNavigateToPantry: () -> Unit,
     onNavigateToRecipes: () -> Unit,
@@ -33,6 +34,16 @@ fun HomeDashboardScreen(
     onNavigateToTracker: () -> Unit,
     onNavigateToProfile: () -> Unit
 ) {
+    val userProfile by viewModel.userProfile.collectAsState()
+    val trackedMeals by viewModel.trackedMeals.collectAsState()
+    
+    val totalCalories = viewModel.getTotalCalories()
+    val calorieGoal = userProfile?.goalCalories ?: 2000
+    val remainingCalories = maxOf(0, calorieGoal - totalCalories)
+    val progress = if (calorieGoal > 0) totalCalories.toFloat() / calorieGoal.toFloat() else 0f
+    
+    val userName = userProfile?.name ?: "User"
+
     Scaffold(
         bottomBar = {
             MealMateBottomBar(
@@ -109,7 +120,7 @@ fun HomeDashboardScreen(
 
                 // Greeting
                 Text(
-                    text = "Good Morning, Alex!",
+                    text = "Good Morning, $userName!",
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -130,7 +141,7 @@ fun HomeDashboardScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(
-                        progress = { 0.71f },
+                        progress = { progress.coerceIn(0f, 1f) },
                         modifier = Modifier.size(220.dp),
                         color = MaterialTheme.colorScheme.primaryContainer,
                         strokeWidth = 16.dp,
@@ -138,7 +149,7 @@ fun HomeDashboardScreen(
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "1,420",
+                            "$remainingCalories",
                             style = MaterialTheme.typography.displayLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -159,9 +170,9 @@ fun HomeDashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    MacroItem("142g", "Protein", MaterialTheme.colorScheme.primary)
-                    MacroItem("210g", "Carbs", MaterialTheme.colorScheme.secondary)
-                    MacroItem("54g", "Fats", MaterialTheme.colorScheme.tertiary)
+                    MacroItem("${viewModel.getTotalProtein().toInt()}g", "Protein", MaterialTheme.colorScheme.primary)
+                    MacroItem("${viewModel.getTotalCarbs().toInt()}g", "Carbs", MaterialTheme.colorScheme.secondary)
+                    MacroItem("${viewModel.getTotalFat().toInt()}g", "Fats", MaterialTheme.colorScheme.tertiary)
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -250,23 +261,21 @@ fun HomeDashboardScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Breakfast
-                MealItem(
-                    mealType = "Breakfast",
-                    description = "Greek Yogurt & Berries",
-                    kcal = "340 kcal",
-                    isLogged = true
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Lunch (not logged)
-                MealItem(
-                    mealType = "Lunch",
-                    description = "Not logged yet",
-                    kcal = "",
-                    isLogged = false
-                )
+                if (trackedMeals.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Text("No meals tracked today.", color = MaterialTheme.colorScheme.outline)
+                    }
+                } else {
+                    trackedMeals.take(3).forEach { meal ->
+                        MealItem(
+                            mealType = meal.title,
+                            description = meal.subtitle,
+                            kcal = "${meal.calories} kcal",
+                            isLogged = true
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
             }

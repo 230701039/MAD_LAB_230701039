@@ -20,17 +20,71 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mealmate.app.ui.components.MealMateBottomBar
+import androidx.compose.runtime.collectAsState
+import com.mealmate.app.viewmodel.MealViewModel
 
 @Composable
 fun PantryInventoryScreen(
+    viewModel: MealViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToHome: () -> Unit,
     onNavigateToRecipes: () -> Unit,
     onNavigateToPlanner: () -> Unit,
     onNavigateToTracker: () -> Unit
 ) {
+    val pantryItems by viewModel.pantryItems.collectAsState()
     val categories = listOf("All Items", "Veggies", "Meat", "Dairy", "Grains")
     var selectedCategory by remember { mutableStateOf("All Items") }
+    var showAddDialog by remember { mutableStateOf(false) }
+
+    val filteredItems = if (selectedCategory == "All Items") {
+        pantryItems
+    } else {
+        pantryItems.filter { it.category == selectedCategory }
+    }
+
+    if (showAddDialog) {
+        var name by remember { mutableStateOf("") }
+        var quantity by remember { mutableStateOf("") }
+        var unit by remember { mutableStateOf("UNITS") }
+        var category by remember { mutableStateOf("Veggies") }
+
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text(text = "Add Item to Pantry") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Name") }
+                    )
+                    OutlinedTextField(
+                        value = quantity,
+                        onValueChange = { quantity = it },
+                        label = { Text("Quantity") }
+                    )
+                    Text(text = "Category: Veggies, Meat, Dairy, Grains", style = MaterialTheme.typography.labelSmall)
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text("Category") }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (name.isNotBlank()) {
+                        viewModel.addPantryItem(name, quantity, unit, category)
+                        showAddDialog = false
+                    }
+                }) { Text("Add") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     Scaffold(
         bottomBar = {
@@ -48,7 +102,7 @@ fun PantryInventoryScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { },
+                onClick = { showAddDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = Color.White,
                 shape = RoundedCornerShape(16.dp)
@@ -99,7 +153,7 @@ fun PantryInventoryScreen(
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Search bar + barcode scanner
+                // Search bar
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -168,12 +222,12 @@ fun PantryInventoryScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        "Fresh Produce",
+                        selectedCategory,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "4 items",
+                        "${filteredItems.size} items",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -181,123 +235,20 @@ fun PantryInventoryScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Grid items
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    PantryGridItem(
-                        name = "Avocados",
-                        quantity = "3",
-                        unit = "UNITS LEFT",
-                        icon = Icons.Filled.Eco,
-                        iconColor = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
+                // Display items
+                filteredItems.forEach { item ->
+                    PantryListItem(
+                        name = item.name,
+                        detail = "Category: ${item.category}",
+                        quantity = "${item.quantity} ${item.unit}",
+                        icon = if (item.category == "Meat") Icons.Filled.Egg else Icons.Filled.Eco,
+                        iconColor = if (item.category == "Meat") MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                        onDelete = { viewModel.removePantryItem(item) }
                     )
-                    PantryGridItem(
-                        name = "Chicken Breast",
-                        quantity = "500",
-                        unit = "g",
-                        icon = Icons.Filled.Egg,
-                        iconColor = MaterialTheme.colorScheme.secondary,
-                        showProgress = true,
-                        progress = 0.6f,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // List items
-                PantryListItem(
-                    name = "Whole Milk",
-                    detail = "Exp: 2 days left",
-                    quantity = "1.2L",
-                    icon = Icons.Filled.WaterDrop,
-                    iconColor = Color(0xFF2196F3)
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                PantryListItem(
-                    name = "Eggs (Large)",
-                    detail = "Pantry Stock",
-                    quantity = "6",
-                    icon = Icons.Filled.EggAlt,
-                    iconColor = Color(0xFFF44336)
-                )
 
                 Spacer(modifier = Modifier.height(24.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PantryGridItem(
-    name: String,
-    quantity: String,
-    unit: String,
-    icon: ImageVector,
-    iconColor: Color,
-    showProgress: Boolean = false,
-    progress: Float = 0f,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        shadowElevation = 1.dp
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = iconColor.copy(alpha = 0.1f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, null, tint = iconColor, modifier = Modifier.size(20.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    quantity,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                if (unit.length <= 2) {
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        unit,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            }
-            if (unit.length > 2) {
-                Text(
-                    unit,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    letterSpacing = MaterialTheme.typography.labelSmall.letterSpacing
-                )
-            }
-            if (showProgress) {
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = MaterialTheme.colorScheme.secondary,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                )
             }
         }
     }
@@ -309,7 +260,8 @@ private fun PantryListItem(
     detail: String,
     quantity: String,
     icon: ImageVector,
-    iconColor: Color
+    iconColor: Color,
+    onDelete: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -332,15 +284,20 @@ private fun PantryListItem(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Text(name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 Text(detail, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(
-                quantity,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    quantity,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                }
+            }
         }
     }
 }

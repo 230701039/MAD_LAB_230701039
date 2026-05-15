@@ -18,19 +18,26 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mealmate.app.ui.components.MealMateBottomBar
+import com.mealmate.app.viewmodel.MealViewModel
 
 @Composable
 fun RecipeDiscoveryScreen(
+    viewModel: MealViewModel,
     onNavigateToDetail: (Int) -> Unit,
     onNavigateToHome: () -> Unit,
     onNavigateToPantry: () -> Unit,
     onNavigateToPlanner: () -> Unit,
     onNavigateToTracker: () -> Unit
 ) {
-    val filters = listOf("All Recipes", "Veg", "Vegan", "Keto", "High Protein")
+    val filters = listOf("All Recipes", "Veg", "Non-Veg", "Vegan")
     var selectedFilter by remember { mutableStateOf("All Recipes") }
+
+    val filteredRecipes = if (selectedFilter == "All Recipes") {
+        viewModel.recipes
+    } else {
+        viewModel.recipes.filter { it.category.equals(selectedFilter, ignoreCase = true) }
+    }
 
     Scaffold(
         bottomBar = {
@@ -90,12 +97,12 @@ fun RecipeDiscoveryScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
-                    "Based on your pantry",
+                    "Discover Recipes",
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Delicious meals you can cook right now with what you have.",
+                    "Delicious meals you can cook based on your pantry.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -128,36 +135,23 @@ fun RecipeDiscoveryScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Recipe Cards
-                RecipeDiscoveryCard(
-                    title = "Zesty Avocado Power Bowl",
-                    tag = "VEGAN",
-                    kcal = "420 kcal",
-                    time = "15 min",
-                    pantryStatus = "All items in pantry",
-                    onClick = { onNavigateToDetail(1) }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                RecipeDiscoveryCard(
-                    title = "Herb-Crusted Salmon",
-                    tag = "HIGH-PROTEIN",
-                    kcal = "550 kcal",
-                    time = "25 min",
-                    pantryStatus = "Missing: Lemon",
-                    onClick = { onNavigateToDetail(2) }
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                RecipeDiscoveryCard(
-                    title = "Ginger Spiced Pumpkin Soup",
-                    tag = "VEG",
-                    kcal = "280 kcal",
-                    time = "35 min",
-                    pantryStatus = "All items in pantry",
-                    onClick = { onNavigateToDetail(3) }
-                )
+                if (filteredRecipes.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                        Text("No recipes found for this category.", color = MaterialTheme.colorScheme.outline)
+                    }
+                } else {
+                    filteredRecipes.forEach { recipe ->
+                        RecipeDiscoveryCard(
+                            title = recipe.title,
+                            tag = recipe.category.uppercase(),
+                            kcal = recipe.kcal,
+                            time = recipe.time,
+                            pantryStatus = viewModel.getPantryStatus(recipe),
+                            onClick = { onNavigateToDetail(recipe.id) }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -182,7 +176,7 @@ private fun RecipeDiscoveryCard(
         onClick = onClick
     ) {
         Column {
-            // Image area
+            // Image area placeholder
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -217,21 +211,6 @@ private fun RecipeDiscoveryCard(
                         Text(kcal, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
                     }
                 }
-
-                // Favorite button
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(12.dp),
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.9f)
-                ) {
-                    Icon(
-                        Icons.Outlined.FavoriteBorder, null,
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(8.dp).size(20.dp)
-                    )
-                }
             }
 
             // Card content
@@ -242,7 +221,7 @@ private fun RecipeDiscoveryCard(
                 ) {
                     Text(
                         title,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
@@ -267,7 +246,12 @@ private fun RecipeDiscoveryCard(
                     Spacer(modifier = Modifier.width(16.dp))
                     Icon(Icons.Outlined.Inventory2, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.outline)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(pantryStatus, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                    Text(
+                        pantryStatus, 
+                        style = MaterialTheme.typography.labelSmall, 
+                        color = if (pantryStatus.startsWith("Missing")) Color.Red else MaterialTheme.colorScheme.primary,
+                        fontWeight = if (pantryStatus.startsWith("Missing")) FontWeight.Normal else FontWeight.Bold
+                    )
                 }
             }
         }

@@ -22,16 +22,19 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun RecipeDetailScreen(
     recipeId: Int,
+    viewModel: com.mealmate.app.viewmodel.MealViewModel,
     onNavigateBack: () -> Unit
 ) {
-    val ingredients = listOf(
+    val recipe = viewModel.recipes.find { it.id == recipeId }
+    
+    val ingredients = recipe?.ingredients?.map { it to "to taste" } ?: listOf(
         "Fresh Atlantic Salmon Fillet" to "300g",
         "Organic White Quinoa" to "1 Cup",
         "Ripe Avocado" to "1 unit",
         "Cherry Tomatoes" to "150g"
     )
 
-    val instructions = listOf(
+    val instructions = if (recipe?.instructions?.isNotEmpty() == true) recipe.instructions else listOf(
         "Rinse the quinoa under cold water and bring to a boil in 2 cups of water. Reduce heat and simmer for 15 minutes.",
         "Season salmon fillets with sea salt and pepper. Heat a non-stick pan over medium heat with a drizzle of olive oil.",
         "Sear the salmon for 4 minutes per side until golden brown and flaky. Let it rest for 2 minutes before serving.",
@@ -68,7 +71,21 @@ fun RecipeDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { },
+                        onClick = { 
+                            recipe?.let {
+                                viewModel.addPlannedMeal(
+                                    day = "Wed", // Default for demo
+                                    mealType = "Lunch",
+                                    title = it.title,
+                                    info = "${it.kcal} • ${it.time}",
+                                    calories = it.kcal.replace(" kcal", "").toIntOrNull() ?: 0,
+                                    protein = it.protein,
+                                    carbs = it.carbs,
+                                    fat = it.fat,
+                                    fiber = it.fiber
+                                )
+                            }
+                        },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
@@ -77,7 +94,19 @@ fun RecipeDetailScreen(
                         Text("Add to Planner")
                     }
                     Button(
-                        onClick = { },
+                        onClick = { 
+                            recipe?.let {
+                                viewModel.addTrackedMeal(
+                                    title = it.title,
+                                    type = "Lunch",
+                                    calories = it.kcal.replace(" kcal", "").toIntOrNull() ?: 0,
+                                    protein = it.protein,
+                                    carbs = it.carbs,
+                                    fat = it.fat,
+                                    fiber = it.fiber
+                                )
+                            }
+                        },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -122,28 +151,30 @@ fun RecipeDetailScreen(
                             color = Color.White.copy(alpha = 0.85f)
                         ) {
                             Text(
-                                "Healthy",
+                                recipe?.category ?: "Healthy",
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)
-                        ) {
-                            Text(
-                                "High Protein",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
-                            )
+                        if ((recipe?.protein ?: 0.0) > 20.0) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)
+                            ) {
+                                Text(
+                                    "High Protein",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Grilled Salmon &\nQuinoa Bowl",
+                        recipe?.title ?: "Grilled Salmon &\nQuinoa Bowl",
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -162,10 +193,10 @@ fun RecipeDetailScreen(
                         .padding(horizontal = 20.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    NutritionItem("Calories", "480")
-                    NutritionItem("Protein", "32g")
-                    NutritionItem("Carbs", "45g")
-                    NutritionItem("Fats", "18g")
+                    NutritionItem("Calories", recipe?.kcal?.replace(" kcal", "") ?: "480")
+                    NutritionItem("Protein", "${recipe?.protein ?: 32.0}g")
+                    NutritionItem("Carbs", "${recipe?.carbs ?: 45.0}g")
+                    NutritionItem("Fats", "${recipe?.fat ?: 18.0}g")
                 }
             }
 
@@ -263,6 +294,24 @@ fun RecipeDetailScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f)
                         )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Add missing to shopping list button
+                recipe?.let { r ->
+                    val missingCount = viewModel.getMissingIngredients(r).size
+                    if (missingCount > 0) {
+                        Button(
+                            onClick = { viewModel.addMissingIngredientsToShoppingList(r) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                        ) {
+                            Icon(Icons.Filled.AddShoppingCart, null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Add $missingCount missing items to Shopping List")
+                        }
                     }
                 }
 

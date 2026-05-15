@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
 
     <application
+        android:name=".MealMateApplication"
         android:allowBackup="true"
         android:icon="@drawable/ic_placeholder_launcher"
         android:label="Meal Mate"

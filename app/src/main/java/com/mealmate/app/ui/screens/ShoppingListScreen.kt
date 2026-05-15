@@ -18,10 +18,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.collectAsState
 import com.mealmate.app.ui.components.MealMateBottomBar
 
 @Composable
 fun ShoppingListScreen(
+    viewModel: com.mealmate.app.viewmodel.MealViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToHome: () -> Unit,
     onNavigateToPantry: () -> Unit,
@@ -30,6 +32,10 @@ fun ShoppingListScreen(
     onNavigateToTracker: () -> Unit
 ) {
     var newItem by remember { mutableStateOf("") }
+    val shoppingList by viewModel.shoppingList.collectAsState()
+    val completedCount = shoppingList.count { it.isChecked }
+    val totalCount = shoppingList.size
+    val progress = if (totalCount > 0) completedCount.toFloat() / totalCount.toFloat() else 0f
 
     Scaffold(
         bottomBar = {
@@ -102,12 +108,12 @@ fun ShoppingListScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            "You have 12 items to buy",
+                            "You have ${totalCount - completedCount} items to buy",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    TextButton(onClick = { }) {
+                    TextButton(onClick = { viewModel.clearCompletedShoppingItems() }) {
                         Text(
                             "Clear Completed",
                             color = MaterialTheme.colorScheme.primary,
@@ -120,7 +126,7 @@ fun ShoppingListScreen(
 
                 // Progress bar
                 LinearProgressIndicator(
-                    progress = { 0.25f },
+                    progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
@@ -155,7 +161,13 @@ fun ShoppingListScreen(
                     Surface(
                         modifier = Modifier.size(52.dp),
                         shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = {
+                            if (newItem.isNotBlank()) {
+                                viewModel.addShoppingItem(newItem, "1 unit", "Other")
+                                newItem = ""
+                            }
+                        }
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(Icons.Filled.Send, null, tint = Color.White, modifier = Modifier.size(20.dp))
@@ -165,42 +177,25 @@ fun ShoppingListScreen(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Produce section
-                ShoppingCategory(
-                    icon = Icons.Filled.Eco,
-                    title = "Produce",
-                    count = "4 items",
-                    items = listOf(
-                        ShoppingItem("Baby Spinach", "1 large bag", false),
-                        ShoppingItem("Organic Avocado", "2 units", false),
-                        ShoppingItem("Red Bell Peppers", "3 units", true)
+                // Dynamic sections based on categories
+                val categories = shoppingList.map { it.category }.distinct()
+                categories.forEach { category ->
+                    val itemsInCategory = shoppingList.filter { it.category == category }
+                    ShoppingCategory(
+                        icon = when (category) {
+                            "Produce" -> Icons.Filled.Eco
+                            "Grains & Pantry" -> Icons.Filled.Grain
+                            "Protein" -> Icons.Filled.Inventory2
+                            else -> Icons.Filled.ShoppingBasket
+                        },
+                        title = category,
+                        count = "${itemsInCategory.size} items",
+                        items = itemsInCategory,
+                        onToggleItem = { viewModel.toggleShoppingItem(it) },
+                        onDeleteItem = { viewModel.removeShoppingItem(it) }
                     )
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Grains & Pantry section
-                ShoppingCategory(
-                    icon = Icons.Filled.Grain,
-                    title = "Grains & Pantry",
-                    count = "2 items",
-                    items = listOf(
-                        ShoppingItem("Quinoa (Tri-color)", "500g pack", false),
-                        ShoppingItem("Whole Wheat Pasta", "1 box", false)
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Protein section
-                ShoppingCategory(
-                    icon = Icons.Filled.Inventory2,
-                    title = "Protein",
-                    count = "1 item",
-                    items = listOf(
-                        ShoppingItem("Firm Tofu", "2 blocks (400g each)", false)
-                    )
-                )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -265,7 +260,9 @@ private fun ShoppingCategory(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     count: String,
-    items: List<ShoppingItem>
+    items: List<com.mealmate.app.data.model.ShoppingItem>,
+    onToggleItem: (com.mealmate.app.data.model.ShoppingItem) -> Unit,
+    onDeleteItem: (com.mealmate.app.data.model.ShoppingItem) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -306,8 +303,8 @@ private fun ShoppingCategory(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(
-                        checked = item.checked,
-                        onCheckedChange = { },
+                        checked = item.isChecked,
+                        onCheckedChange = { onToggleItem(item) },
                         colors = CheckboxDefaults.colors(
                             checkedColor = MaterialTheme.colorScheme.primary,
                             uncheckedColor = MaterialTheme.colorScheme.outlineVariant
@@ -318,8 +315,8 @@ private fun ShoppingCategory(
                             item.name,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
-                            textDecoration = if (item.checked) TextDecoration.LineThrough else TextDecoration.None,
-                            color = if (item.checked) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
+                            textDecoration = if (item.isChecked) TextDecoration.LineThrough else TextDecoration.None,
+                            color = if (item.isChecked) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             item.quantity,
@@ -327,11 +324,13 @@ private fun ShoppingCategory(
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
-                    Icon(
-                        Icons.Filled.MoreVert, null,
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    IconButton(onClick = { onDeleteItem(item) }) {
+                        Icon(
+                            Icons.Filled.Delete, null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
                 if (index < items.size - 1) {
                     HorizontalDivider(

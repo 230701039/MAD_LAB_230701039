@@ -19,14 +19,34 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mealmate.app.ui.components.MealMateBottomBar
 
+import androidx.compose.runtime.collectAsState
+import com.mealmate.app.viewmodel.MealViewModel
+
 @Composable
 fun WeeklyAnalyticsScreen(
+    viewModel: MealViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToHome: () -> Unit,
     onNavigateToPantry: () -> Unit,
     onNavigateToRecipes: () -> Unit,
     onNavigateToPlanner: () -> Unit
 ) {
+    val trackedMeals by viewModel.trackedMeals.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+    val calorieGoal = userProfile?.goalCalories ?: 2000
+
+    // Calculate real data
+    val totalCalories = trackedMeals.sumOf { it.calories }
+    val totalProtein = trackedMeals.sumOf { it.protein }
+    val totalCarbs = trackedMeals.sumOf { it.carbs }
+    val totalFat = trackedMeals.sumOf { it.fat }
+    val totalFiber = trackedMeals.sumOf { it.fiber }
+
+    val totalMacros = totalProtein + totalCarbs + totalFat
+    val proteinPct = if (totalMacros > 0) (totalProtein / totalMacros * 100).toInt() else 0
+    val carbsPct = if (totalMacros > 0) (totalCarbs / totalMacros * 100).toInt() else 0
+    val fatPct = if (totalMacros > 0) (totalFat / totalMacros * 100).toInt() else 0
+
     Scaffold(
         bottomBar = {
             MealMateBottomBar(
@@ -131,7 +151,7 @@ fun WeeklyAnalyticsScreen(
                                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
                             ) {
                                 Text(
-                                    "Daily Avg: 2,140",
+                                    "Total: $totalCalories / $calorieGoal",
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary,
@@ -142,8 +162,8 @@ fun WeeklyAnalyticsScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Bar chart
-                        val barData = listOf(0.7f, 0.8f, 0.9f, 0.6f, 0.75f, 0.85f, 0.5f)
+                        // Bar chart - dynamically scaled based on goal
+                        val barData = listOf(0.7f, 0.8f, totalCalories.toFloat() / calorieGoal, 0.6f, 0.75f, 0.85f, 0.5f)
                         val dayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
                         Row(
                             modifier = Modifier
@@ -210,24 +230,31 @@ fun WeeklyAnalyticsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressIndicator(
-                                    progress = { 0.75f },
+                                    progress = { 1f },
                                     modifier = Modifier.size(80.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    color = MaterialTheme.colorScheme.primary,
                                     strokeWidth = 10.dp,
-                                    trackColor = Color(0xFFFFCDD2),
+                                    trackColor = Color(0xFFF5F5F5),
                                 )
                                 CircularProgressIndicator(
-                                    progress = { 0.3f },
+                                    progress = { (carbsPct + fatPct).toFloat() / 100f },
                                     modifier = Modifier.size(80.dp),
                                     color = MaterialTheme.colorScheme.secondaryContainer,
                                     strokeWidth = 10.dp,
                                     trackColor = Color.Transparent,
                                 )
+                                CircularProgressIndicator(
+                                    progress = { fatPct.toFloat() / 100f },
+                                    modifier = Modifier.size(80.dp),
+                                    color = Color(0xFFE91E63),
+                                    strokeWidth = 10.dp,
+                                    trackColor = Color.Transparent,
+                                )
                             }
                             Spacer(modifier = Modifier.height(12.dp))
-                            MacroLegend("Prot", "45%", MaterialTheme.colorScheme.primary)
-                            MacroLegend("Carb", "30%", MaterialTheme.colorScheme.secondaryContainer)
-                            MacroLegend("Fat", "25%", Color(0xFFE91E63))
+                            MacroLegend("Prot", "$proteinPct%", MaterialTheme.colorScheme.primary)
+                            MacroLegend("Carb", "$carbsPct%", MaterialTheme.colorScheme.secondaryContainer)
+                            MacroLegend("Fat", "$fatPct%", Color(0xFFE91E63))
                         }
                     }
 
@@ -299,8 +326,8 @@ fun WeeklyAnalyticsScreen(
                             icon = Icons.Filled.Grain,
                             iconColor = MaterialTheme.colorScheme.secondary,
                             label = "Fiber",
-                            detail = "28g / 25g Target",
-                            progress = 1f,
+                            detail = "${totalFiber.toInt()}g / 25g Target",
+                            progress = (totalFiber / 25.0).toFloat().coerceAtMost(1f),
                             progressColor = MaterialTheme.colorScheme.secondary
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))

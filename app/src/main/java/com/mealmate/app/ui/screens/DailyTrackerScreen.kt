@@ -7,27 +7,172 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mealmate.app.ui.components.MealMateBottomBar
+import com.mealmate.app.viewmodel.MealViewModel
+import java.text.SimpleDateFormat
+import java.util.*
+
+import androidx.compose.runtime.collectAsState
 
 @Composable
 fun DailyTrackerScreen(
+    viewModel: MealViewModel,
     onNavigateToHome: () -> Unit,
     onNavigateToPantry: () -> Unit,
     onNavigateToRecipes: () -> Unit,
     onNavigateToPlanner: () -> Unit,
     onNavigateToAnalytics: () -> Unit
 ) {
+    var showAddMealDialog by remember { mutableStateOf(false) }
+    
+    val trackedMeals by viewModel.trackedMeals.collectAsState()
+    val plannedMeals by viewModel.plannedMeals.collectAsState()
+    val userProfile by viewModel.userProfile.collectAsState()
+
+    val totalCalories = viewModel.getTotalCalories()
+    val calorieGoal = userProfile?.goalCalories ?: 2000
+    val progress = if (calorieGoal > 0) totalCalories.toFloat() / calorieGoal.toFloat() else 0f
+    val remainingCalories = maxOf(0, calorieGoal - totalCalories)
+    
+    val currentDay = SimpleDateFormat("EEE", Locale.getDefault()).format(Date())
+    val plannedCals = viewModel.getPlannedCaloriesForDay(currentDay)
+    val missingMeals = viewModel.getMissingPlannedMeals(currentDay)
+
+    if (showAddMealDialog) {
+        var mealTitle by remember { mutableStateOf("") }
+        var mealType by remember { mutableStateOf("Breakfast") }
+        var caloriesText by remember { mutableStateOf("") }
+        var proteinText by remember { mutableStateOf("") }
+        var carbsText by remember { mutableStateOf("") }
+        var fatText by remember { mutableStateOf("") }
+        var fiberText by remember { mutableStateOf("") }
+        var mealTime by remember { mutableStateOf(SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())) }
+        val mealTypes = listOf("Breakfast", "Lunch", "Dinner", "Snack")
+
+        // Update nutrition automatically when mealTitle changes
+        LaunchedEffect(mealTitle) {
+            val suggested = viewModel.getSuggestedNutrition(mealTitle)
+            if (suggested != null) {
+                caloriesText = suggested.calories.toString()
+                proteinText = String.format(Locale.US, "%.1f", suggested.protein)
+                carbsText = String.format(Locale.US, "%.1f", suggested.carbs)
+                fatText = String.format(Locale.US, "%.1f", suggested.fat)
+                fiberText = String.format(Locale.US, "%.1f", suggested.fiber)
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showAddMealDialog = false },
+            title = { Text("Add Meal") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    OutlinedTextField(
+                        value = mealTitle,
+                        onValueChange = { mealTitle = it },
+                        label = { Text("Meal Name (e.g. 4 Idli)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Text("Category", style = MaterialTheme.typography.labelMedium)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        mealTypes.forEach { type ->
+                            FilterChip(
+                                selected = mealType == type,
+                                onClick = { mealType = type },
+                                label = { Text(type, style = MaterialTheme.typography.labelSmall) }
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = mealTime,
+                        onValueChange = { mealTime = it },
+                        label = { Text("Time") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = caloriesText,
+                        onValueChange = { if (it.isEmpty() || it.all { char -> char.isDigit() }) caloriesText = it },
+                        label = { Text("Calories (kcal)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = proteinText,
+                            onValueChange = { proteinText = it },
+                            label = { Text("Prot (g)") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = carbsText,
+                            onValueChange = { carbsText = it },
+                            label = { Text("Carb (g)") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = fatText,
+                            onValueChange = { fatText = it },
+                            label = { Text("Fat (g)") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = fiberText,
+                            onValueChange = { fiberText = it },
+                            label = { Text("Fiber (g)") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val cals = caloriesText.toIntOrNull() ?: 0
+                        if (mealTitle.isNotBlank() && cals > 0) {
+                            viewModel.addTrackedMeal(
+                                mealTitle, 
+                                mealType, 
+                                cals,
+                                proteinText.toDoubleOrNull() ?: 0.0,
+                                carbsText.toDoubleOrNull() ?: 0.0,
+                                fatText.toDoubleOrNull() ?: 0.0,
+                                fiberText.toDoubleOrNull() ?: 0.0,
+                                mealTime
+                            )
+                            showAddMealDialog = false
+                        }
+                    }
+                ) {
+                    Text("Add")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddMealDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         bottomBar = {
             MealMateBottomBar(
@@ -38,6 +183,7 @@ fun DailyTrackerScreen(
                         "pantry" -> onNavigateToPantry()
                         "recipes" -> onNavigateToRecipes()
                         "planner" -> onNavigateToPlanner()
+                        "tracker" -> { /* Already here */ }
                     }
                 }
             )
@@ -123,7 +269,7 @@ fun DailyTrackerScreen(
                 ) {
                     // Calorie ring card
                     Surface(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.2f),
                         shape = RoundedCornerShape(16.dp),
                         color = Color.White,
                         shadowElevation = 1.dp
@@ -133,19 +279,19 @@ fun DailyTrackerScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Box(
-                                modifier = Modifier.size(100.dp),
+                                modifier = Modifier.size(110.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressIndicator(
-                                    progress = { 0.71f },
-                                    modifier = Modifier.size(100.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    progress = { progress.coerceIn(0f, 1f) },
+                                    modifier = Modifier.size(110.dp),
+                                    color = MaterialTheme.colorScheme.primary,
                                     strokeWidth = 10.dp,
                                     trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 )
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
-                                        "1,420",
+                                        "$remainingCalories",
                                         style = MaterialTheme.typography.headlineSmall,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -159,102 +305,102 @@ fun DailyTrackerScreen(
                         }
                     }
 
-                    // Weekly mini chart card
+                    // Macro distribution card
                     Surface(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(16.dp),
                         color = Color.White,
                         shadowElevation = 1.dp
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    "Weekly",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Icon(
-                                    Icons.Filled.TrendingUp, null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            // Mini bar chart
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.Bottom
-                            ) {
-                                listOf(0.5f, 0.7f, 0.4f, 0.85f, 0.6f).forEach { height ->
-                                    Box(
-                                        modifier = Modifier
-                                            .width(8.dp)
-                                            .fillMaxHeight(height)
-                                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                            .background(MaterialTheme.colorScheme.primary)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Text(
-                                "85% Goal Hit",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.outline
+                                "Macros",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
                             )
+                            
+                            MacroSummaryItem("Protein", "${viewModel.getTotalProtein().toInt()}g", Color(0xFF4CAF50))
+                            MacroSummaryItem("Carbs", "${viewModel.getTotalCarbs().toInt()}g", Color(0xFFFF9800))
+                            MacroSummaryItem("Fat", "${viewModel.getTotalFat().toInt()}g", Color(0xFFE91E63))
+                            MacroSummaryItem("Fiber", "${viewModel.getTotalFiber().toInt()}g", Color(0xFF2196F3))
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // Nutrition Balance card
+                // Active Plan Summary
+                Text(
+                    "Today's Plan Summary",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     color = Color.White,
                     shadowElevation = 1.dp
                 ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                "Nutrition Balance",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    "Good Progress",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.EventNote, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Planned for $currentDay", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                            }
+                            Text("$plannedCals kcal total", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(modifier = Modifier.alpha(0.3f))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val mealTypes = listOf("Breakfast", "Lunch", "Dinner")
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            mealTypes.forEach { type ->
+                                val meal = plannedMeals.firstOrNull { it.day == currentDay && it.mealType == type }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                                    Text(type, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        if (meal != null) "${meal.calories} kcal" else "Not set",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (meal != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Macro bars
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            NutritionBar("Prot", "82g", 0.45f, MaterialTheme.colorScheme.primary)
-                            NutritionBar("Carbs", "112g", 0.55f, MaterialTheme.colorScheme.secondaryContainer)
-                            NutritionBar("Fats", "42g", 0.35f, Color(0xFFE91E63))
+                        
+                        if (missingMeals.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.NotificationsActive, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "Alert: Missing ${missingMeals.joinToString(", ")} plan",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -272,7 +418,7 @@ fun DailyTrackerScreen(
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
-                    TextButton(onClick = { }) {
+                    TextButton(onClick = { showAddMealDialog = true }) {
                         Icon(Icons.Filled.AddCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Add Meal", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
@@ -281,12 +427,22 @@ fun DailyTrackerScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Meal items
-                TrackerMealItem("Avocado Toast & Egg", "Breakfast • 8:30 AM", "420 kcal")
-                Spacer(modifier = Modifier.height(8.dp))
-                TrackerMealItem("Quinoa Chicken Salad", "Lunch • 1:15 PM", "580 kcal")
-                Spacer(modifier = Modifier.height(8.dp))
-                TrackerMealItem("Greek Yogurt & Berries", "Snack • 4:00 PM", "210 kcal")
+                // Dynamic Meal items
+                if (trackedMeals.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Text("No meals tracked today.", color = MaterialTheme.colorScheme.outline)
+                    }
+                } else {
+                    trackedMeals.forEach { meal ->
+                        TrackerMealItem(
+                            title = meal.title,
+                            subtitle = meal.subtitle,
+                            kcal = "${meal.calories} kcal",
+                            onDelete = { viewModel.removeTrackedMeal(meal) }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -321,21 +477,6 @@ fun DailyTrackerScreen(
                                     color = Color.White.copy(alpha = 0.7f)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            // Water glass indicators
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                repeat(6) { index ->
-                                    Box(
-                                        modifier = Modifier
-                                            .size(width = 24.dp, height = 8.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(
-                                                if (index < 4) Color.White
-                                                else Color.White.copy(alpha = 0.3f)
-                                            )
-                                    )
-                                }
-                            }
                         }
                         Button(
                             onClick = { },
@@ -357,32 +498,28 @@ fun DailyTrackerScreen(
 }
 
 @Composable
-private fun NutritionBar(label: String, value: String, progress: Float, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .width(48.dp)
-                .height(100.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(progress)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(color)
-            )
+private fun MacroSummaryItem(label: String, value: String, color: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text(value, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-private fun TrackerMealItem(title: String, subtitle: String, kcal: String) {
+private fun TrackerMealItem(
+    title: String,
+    subtitle: String,
+    kcal: String,
+    onDelete: () -> Unit
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -412,7 +549,12 @@ private fun TrackerMealItem(title: String, subtitle: String, kcal: String) {
                 Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(kcal, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(kcal, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
                     Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer))

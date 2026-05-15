@@ -7,14 +7,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.mealmate.app.ui.screens.*
+import com.mealmate.app.viewmodel.MealViewModel
 
 @Composable
-fun MealMateNavGraph(navController: NavHostController) {
+fun MealMateNavGraph(navController: NavHostController, viewModel: MealViewModel) {
     NavHost(
         navController = navController,
         startDestination = Screen.Splash.route
     ) {
-        composable(Screen.Splash.route) {
+        composable(Screen.Splash.route) { _ ->
             SplashScreen(
                 onNavigateToLogin = {
                     navController.navigate(Screen.Login.route) {
@@ -24,7 +25,7 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.Login.route) {
+        composable(Screen.Login.route) { _ ->
             LoginScreen(
                 onNavigateToSignUp = {
                     navController.navigate(Screen.SignUp.route)
@@ -37,7 +38,7 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.SignUp.route) {
+        composable(Screen.SignUp.route) { _ ->
             SignUpScreen(
                 onNavigateToLogin = {
                     navController.popBackStack()
@@ -50,7 +51,7 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.Onboarding.route) {
+        composable(Screen.Onboarding.route) { _ ->
             OnboardingScreen(
                 onNavigateToHome = {
                     navController.navigate(Screen.Home.route) {
@@ -60,8 +61,9 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.Home.route) {
+        composable(Screen.Home.route) { _ ->
             HomeDashboardScreen(
+                viewModel = viewModel,
                 onNavigateToRecipeDetail = { recipeId ->
                     navController.navigate(Screen.RecipeDetail.createRoute(recipeId))
                 },
@@ -83,8 +85,9 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.Pantry.route) {
+        composable(Screen.Pantry.route) { _ ->
             PantryInventoryScreen(
+                viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToHome = { navController.navigate(Screen.Home.route) { popUpTo(Screen.Home.route) { inclusive = true } } },
                 onNavigateToRecipes = { navController.navigate(Screen.Recipes.route) },
@@ -93,8 +96,9 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.Recipes.route) {
+        composable(Screen.Recipes.route) { _ ->
             RecipeDiscoveryScreen(
+                viewModel = viewModel,
                 onNavigateToDetail = { recipeId ->
                     navController.navigate(Screen.RecipeDetail.createRoute(recipeId))
                 },
@@ -112,12 +116,14 @@ fun MealMateNavGraph(navController: NavHostController) {
             val recipeId = backStackEntry.arguments?.getInt("recipeId") ?: 0
             RecipeDetailScreen(
                 recipeId = recipeId,
+                viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
-        composable(Screen.Planner.route) {
+        composable(Screen.Planner.route) { _ ->
             WeeklyPlannerScreen(
+                viewModel = viewModel,
                 onNavigateToHome = { navController.navigate(Screen.Home.route) { popUpTo(Screen.Home.route) { inclusive = true } } },
                 onNavigateToPantry = { navController.navigate(Screen.Pantry.route) },
                 onNavigateToRecipes = { navController.navigate(Screen.Recipes.route) },
@@ -126,8 +132,9 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.Tracker.route) {
+        composable(Screen.Tracker.route) { _ ->
             DailyTrackerScreen(
+                viewModel = viewModel,
                 onNavigateToHome = { navController.navigate(Screen.Home.route) { popUpTo(Screen.Home.route) { inclusive = true } } },
                 onNavigateToPantry = { navController.navigate(Screen.Pantry.route) },
                 onNavigateToRecipes = { navController.navigate(Screen.Recipes.route) },
@@ -136,8 +143,9 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.Analytics.route) {
+        composable(Screen.Analytics.route) { _ ->
             WeeklyAnalyticsScreen(
+                viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToHome = { navController.navigate(Screen.Home.route) { popUpTo(Screen.Home.route) { inclusive = true } } },
                 onNavigateToPantry = { navController.navigate(Screen.Pantry.route) },
@@ -146,8 +154,9 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.ShoppingList.route) {
+        composable(Screen.ShoppingList.route) { _ ->
             ShoppingListScreen(
+                viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToHome = { navController.navigate(Screen.Home.route) { popUpTo(Screen.Home.route) { inclusive = true } } },
                 onNavigateToPantry = { navController.navigate(Screen.Pantry.route) },
@@ -157,14 +166,10 @@ fun MealMateNavGraph(navController: NavHostController) {
             )
         }
 
-        composable(Screen.Profile.route) {
-            ProfileSettingsScreen(
-                onNavigateBack = { navController.popBackStack() },
-                onLogout = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                }
+        composable(Screen.Profile.route) { _ ->
+            ProfileScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }
